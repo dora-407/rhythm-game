@@ -126,6 +126,23 @@
     }
     .lane:last-child { border-right: none; }
 
+    /* 判定基準線 (Judgment Baseline) */
+    .judgment-line {
+      position: absolute;
+      top: 145px; /* 剛好穿過 50px~110px 判定箭頭正中心 */
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        rgba(255, 0, 127, 0.8), 
+        rgba(0, 240, 255, 0.8), 
+        rgba(255, 230, 0, 0.8), 
+        rgba(5, 255, 161, 0.8));
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(255, 0, 127, 0.6);
+      z-index: 3;
+      pointer-events: none;
+    }
+
     /* 頂部判定標靶 (Receptors) */
     .receptors-bar {
       position: absolute;
@@ -144,7 +161,7 @@
       align-items: center;
       font-size: 2.2rem;
       font-weight: bold;
-      opacity: 0.4;
+      opacity: 0.45;
       transition: transform 0.05s, opacity 0.05s;
     }
 
@@ -177,7 +194,7 @@
     /* 判定字樣與連擊顯示 */
     #feedback-layer {
       position: absolute;
-      top: 150px;
+      top: 155px;
       width: 100%;
       text-align: center;
       pointer-events: none;
@@ -341,7 +358,10 @@
       <div id="combo-text"><span id="combo-count"></span> COMBO</div>
     </div>
 
-    <!-- 判定標靶 (頂部) -->
+    <!-- 判定基準水平線 (新增：對齊頂部箭頭中心) -->
+    <div class="judgment-line"></div>
+
+    <!-- 頂部判定標靶 (Receptors) -->
     <div class="receptors-bar">
       <div class="receptor arrow-0" id="rec-0">◀</div>
       <div class="receptor arrow-1" id="rec-1">▼</div>
@@ -412,7 +432,7 @@
 
   <script>
     /* =========================================================
-       1. 音樂與音效合成引擎 (Web Audio API - 兩種截然不同的音樂風格)
+       1. 音樂與音效合成引擎 (Web Audio API)
        ========================================================= */
     const AudioEngine = {
       ctx: null,
@@ -422,8 +442,8 @@
       startTime: 0,
       pauseTime: 0,
       timerId: null,
-      currentStep: 0, // 以 16 分音符為基礎步進
-      totalSteps: 16 * 16, // 16 小節
+      currentStep: 0,
+      totalSteps: 16 * 16,
       songIndex: 0,
       onEndCallback: null,
 
@@ -453,7 +473,6 @@
         osc.stop(now + 0.07);
       },
 
-      // 大鼓 (Kick)
       triggerKick(time) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -467,7 +486,6 @@
         osc.stop(time + 0.12);
       },
 
-      // 踩鑔 / 小鼓 (Hi-hat / Snare)
       triggerNoise(time, isSnare) {
         const bufferSize = this.ctx.sampleRate * (isSnare ? 0.1 : 0.03);
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -484,7 +502,6 @@
         noise.start(time);
       },
 
-      // 貝斯 (Bassline)
       triggerBass(time, freq, duration) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -514,7 +531,7 @@
 
       schedule() {
         if (!this.isPlaying || this.isPaused) return;
-        const stepInterval = (60 / this.bpm) / 4; // 16分音符間隔
+        const stepInterval = (60 / this.bpm) / 4;
         const stepTime = this.startTime + (this.currentStep * stepInterval);
 
         if (this.currentStep >= this.totalSteps) {
@@ -523,28 +540,23 @@
           return;
         }
 
-        /* --- 曲目 1：Funk Beat (四四拍大鼓 + 2/4 拍小鼓 + 放克低音) --- */
         if (this.songIndex === 0) {
           if (this.currentStep % 4 === 0) this.triggerKick(stepTime);
-          if (this.currentStep % 8 === 4) this.triggerNoise(stepTime, true); // 小鼓
-          if (this.currentStep % 2 === 0) this.triggerNoise(stepTime, false); // 踩鑔
+          if (this.currentStep % 8 === 4) this.triggerNoise(stepTime, true);
+          if (this.currentStep % 2 === 0) this.triggerNoise(stepTime, false);
 
-          // 放克貝斯音階 (A minor Pentatonic: A1, C2, D2, E2, G2)
           const funkScale = [55, 65.4, 73.4, 82.4, 98];
           if (this.currentStep % 4 === 0 || this.currentStep % 4 === 3) {
             const noteIdx = (Math.floor(this.currentStep / 4) + (this.currentStep % 4)) % funkScale.length;
             this.triggerBass(stepTime, funkScale[noteIdx], stepInterval * 1.5);
           }
-        } 
-        /* --- 曲目 2：Tokyo Rave (反拍 Bass + 高頻 16 分音符 Hi-hat + 狂熱切分) --- */
-        else {
+        } else {
           if (this.currentStep % 4 === 0) this.triggerKick(stepTime);
-          this.triggerNoise(stepTime, false); // 每拍都有急速 Hi-hat
+          this.triggerNoise(stepTime, false);
           if (this.currentStep % 8 === 4) this.triggerNoise(stepTime, true);
 
-          // 經典 Rave 反拍低音 (Offbeat Bass: F#1 / A1 / B1 / D2)
           const raveNotes = [46.2, 55, 61.7, 73.4];
-          if (this.currentStep % 2 === 1) { // 專門打在反拍
+          if (this.currentStep % 2 === 1) {
             const note = raveNotes[Math.floor(this.currentStep / 8) % raveNotes.length];
             this.triggerBass(stepTime, note, stepInterval * 0.9);
           }
@@ -589,7 +601,7 @@
     };
 
     /* =========================================================
-       2. 人工精編專屬譜面 (兩首歌完全不同的節奏，保證四鍵全涵蓋)
+       2. 人工精編專屬譜面 (兩首歌獨立節奏，四鍵皆有)
        ========================================================= */
     function buildCharts(bpm, songIndex) {
       const beat = 60 / bpm;
@@ -601,74 +613,60 @@
       };
 
       if (songIndex === 0) {
-        /* Track 1: Cyber Funk (BPM 120)
-           風格：經典 DDR 步法、四鍵循迴、對稱跳躍、節奏穩健
-        */
         for (let bar = 1; bar < 15; bar++) {
           const b = bar * 4;
           const section = bar % 4;
 
           if (section === 0) {
-            // 循迴步法：左 -> 下 -> 上 -> 右 (0, 1, 2, 3 全包)
             add(0, b + 0);
             add(1, b + 1);
             add(2, b + 2);
             add(3, b + 3);
           } else if (section === 1) {
-            // 交叉反彈：下 -> 左 -> 下 -> 右
             add(1, b + 0);
             add(0, b + 1);
             add(1, b + 2);
             add(3, b + 3);
           } else if (section === 2) {
-            // 上下穿插：上 -> 下 -> 上 -> 左
             add(2, b + 0);
             add(1, b + 1);
             add(2, b + 2);
             add(0, b + 3);
           } else {
-            // 重拍雙踏 (Jump Notes)
-            add(0, b + 0); add(3, b + 0); // 左右雙踏
-            add(1, b + 2); add(2, b + 2); // 上下雙踏
-            add(1, b + 3);                // 單音收尾
+            add(0, b + 0); add(3, b + 0);
+            add(1, b + 2); add(2, b + 2);
+            add(1, b + 3);
           }
         }
       } else {
-        /* Track 2: Tokyo Rave (BPM 140)
-           風格：包含 8 分音符半拍切分音、急速樓梯踩踏、高密度雙踏
-        */
         for (let bar = 1; bar < 15; bar++) {
           const b = bar * 4;
           const section = bar % 4;
 
           if (section === 0) {
-            // 急速樓梯階梯踩踏 (0 -> 1 -> 2 -> 3 -> 2 -> 1)
             add(0, b + 0);
             add(1, b + 1);
-            add(2, b + 1.5); // 半拍切分
+            add(2, b + 1.5);
             add(3, b + 2);
             add(2, b + 3);
-            add(1, b + 3.5); // 半拍切分
+            add(1, b + 3.5);
           } else if (section === 1) {
-            // 內外夾攻：左+右 -> 下 -> 上 -> 左+右
-            add(0, b + 0); add(3, b + 0); // 雙踏
+            add(0, b + 0); add(3, b + 0);
             add(1, b + 1);
             add(2, b + 2);
-            add(0, b + 3); add(3, b + 3); // 雙踏
+            add(0, b + 3); add(3, b + 3);
           } else if (section === 2) {
-            // 連續踩踏：下 -> 下 -> 上 -> 上 -> 右
             add(1, b + 0);
-            add(1, b + 0.5); // 半拍連續
+            add(1, b + 0.5);
             add(2, b + 1.5);
             add(2, b + 2);
             add(3, b + 3);
             add(0, b + 3.5);
           } else {
-            // 瘋狂雙踏狂潮
-            add(0, b + 0); add(2, b + 0); // 左+上
-            add(1, b + 1.5); add(3, b + 1.5); // 下+右
-            add(0, b + 2.5); add(3, b + 2.5); // 左+右
-            add(1, b + 3.5); // 下單音
+            add(0, b + 0); add(2, b + 0);
+            add(1, b + 1.5); add(3, b + 1.5);
+            add(0, b + 2.5); add(3, b + 2.5);
+            add(1, b + 3.5);
           }
         }
       }
@@ -689,7 +687,7 @@
 
     const RECEPTOR_Y = 50;
     const SPAWN_Y = 660;
-    const NOTE_SPEED = 420; // 稍微提升滑動流暢感
+    const NOTE_SPEED = 420;
     const TRAVEL_TIME = (SPAWN_Y - RECEPTOR_Y) / NOTE_SPEED;
 
     let currentChart = [];
@@ -779,7 +777,7 @@
     }
 
     /* =========================================================
-       5. 按鍵監聽與判定 (8 鍵完全涵蓋)
+       5. 按鍵監聽與判定
        ========================================================= */
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
